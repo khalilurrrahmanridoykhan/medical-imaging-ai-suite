@@ -71,10 +71,14 @@ python -m router.predict --input sample_ct_slice.png --modality ct
 
 Returns JSON: `{"modality": "xray", "label": "Pneumonia", "confidence": 0.93}`.
 
+**Note:** `infer.py` downloads trained weights from Hugging Face Hub on first use. Until a
+modality has actually been trained in Colab and its weights uploaded there, running its
+prediction will fail with a download error, that part is a manual step outside this repo.
+
 ## Status / Roadmap
 
 - [x] M0: Repo scaffold, LICENSE, README, GitHub setup
-- [ ] M1: X-Ray (pneumonia detection)
+- [x] M1: X-Ray (pneumonia detection)
 - [ ] M2: CT (lung nodule classification)
 - [ ] M3: MRI (brain tumor classification)
 - [ ] M4: Ultrasound (breast lesion classification)

@@ -8,10 +8,12 @@ import argparse
 import json
 import sys
 
+from router.bootstrap import register_all
 from router.registry import MODALITY_REGISTRY, available_modalities
 
 
 def main() -> None:
+    register_all()
     parser = argparse.ArgumentParser(description="Run a modality-specific prediction.")
     parser.add_argument("--input", required=True, help="Path to the input file.")
     parser.add_argument("--modality", required=True, help="Which modality model to run.")
