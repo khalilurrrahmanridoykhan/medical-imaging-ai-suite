@@ -28,3 +28,10 @@ def register_all() -> None:
         register("mri", mri_predict)
     except ImportError:
         pass
+
+    try:
+        from modalities.ultrasound.infer import predict as ultrasound_predict
+
+        register("ultrasound", ultrasound_predict)
+    except ImportError:
+        pass
