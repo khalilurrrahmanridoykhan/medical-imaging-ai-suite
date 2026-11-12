@@ -67,9 +67,11 @@ model repo and pulled down at inference time, keeping large binaries out of git.
 
 | Modality | Test accuracy | Test AUROC | Notes |
 |---|---|---|---|
-| CT (nodule) | 81.0% | 0.854 | Catches 43/64 malignant test cases (67% sensitivity), misses the rest. A small from-scratch 3D CNN on a tiny, imbalanced dataset; see the disclaimer. |
+| X-Ray (pneumonia) | 84.9% | 0.959 | Catches 387/390 pneumonia cases (99.2% sensitivity) but only 143/234 normal cases (61.1% specificity), flags over a third of healthy X-rays as pneumonia. Val accuracy during training was ~98%; this train/test gap is a known quirk of this specific Kaggle dataset (its test split comes from a different distribution than train/val), not a bug here. |
+| CT (nodule) | 81.0% | 0.854 | Catches 43/64 malignant test cases (67% sensitivity), misses the rest. A small from-scratch 3D CNN on a tiny, imbalanced dataset. |
 
-Other modalities are not trained yet (see Status / Roadmap below).
+Both are well short of clinical-grade performance, see the disclaimer. Other modalities are
+not trained yet (see Status / Roadmap below).
 
 ## Usage
 
@@ -85,14 +87,15 @@ Returns JSON: `{"modality": "xray", "label": "Pneumonia", "confidence": 0.93}`.
 Extracting candidate patches from a full CT volume is a separate, much larger pipeline
 that's out of scope here.
 
-**Note:** `infer.py` downloads trained weights from Hugging Face Hub on first use. Until a
-modality has actually been trained in Colab and its weights uploaded there, running its
-prediction will fail with a download error, that part is a manual step outside this repo.
+**Note:** `infer.py` downloads trained weights from Hugging Face Hub on first use, unless a
+copy already exists locally in `weights/` (how X-Ray and CT were tested here, trained
+locally and copied straight into `weights/`). A modality with no local weights and nothing
+uploaded to HF Hub yet will fail with a download error when you try to predict with it.
 
 ## Status / Roadmap
 
 - [x] M0: Repo scaffold, LICENSE, README, GitHub setup
-- [x] M1: X-Ray (pneumonia detection), code ready, not yet trained (needs Colab + Kaggle token)
+- [x] M1: X-Ray (pneumonia detection), trained locally on an Apple M2 (MPS)
 - [x] M2: CT (lung nodule classification), trained locally on an Apple M2 (MPS)
 - [ ] M3: MRI (brain tumor classification)
 - [ ] M4: Ultrasound (breast lesion classification)

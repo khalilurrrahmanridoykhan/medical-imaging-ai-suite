@@ -11,10 +11,13 @@ import argparse
 import json
 from pathlib import Path
 
+import numpy as np
 import torch
+from PIL import Image
 from sklearn.metrics import confusion_matrix, roc_auc_score
+from sklearn.model_selection import train_test_split
 from torch import nn, optim
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 from torchvision.datasets import ImageFolder
 
@@ -36,6 +39,31 @@ def build_transforms(train: bool) -> transforms.Compose:
         ops += [transforms.RandomHorizontalFlip(), transforms.RandomRotation(10)]
     ops += [transforms.ToTensor(), transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD)]
     return transforms.Compose(ops)
+
+
+class ImagePathDataset(Dataset):
+    """A dataset over an explicit (path, label) list, so train/val can be
+    re-split across the original folder boundaries."""
+
+    def __init__(self, samples, transform):
+        self.samples = samples
+        self.transform = transform
+
+    def __len__(self) -> int:
+        return len(self.samples)
+
+    def __getitem__(self, idx):
+        path, label = self.samples[idx]
+        image = Image.open(path).convert("RGB")
+        return self.transform(image), label
+
+
+def class_weights(targets, num_classes: int) -> torch.Tensor:
+    """Inverse-frequency class weights. This dataset is ~74% pneumonia /
+    26% normal, and an unweighted loss biases toward the majority class."""
+    counts = np.bincount(targets, minlength=num_classes).astype(float)
+    weights = counts.sum() / (num_classes * counts)
+    return torch.tensor(weights, dtype=torch.float32)
 
 
 def run_epoch(model, loader, device, criterion, optimizer=None) -> dict:
@@ -90,16 +118,33 @@ def main() -> None:
     device = get_device()
     print(f"Using device: {device}")
 
-    train_ds = ImageFolder(image_root / "train", transform=build_transforms(train=True))
-    val_ds = ImageFolder(image_root / "val", transform=build_transforms(train=False))
+    # The dataset's official val split is only 16 images, too small to pick
+    # a reliable checkpoint from. Combine train+val and carve out a
+    # stratified 90/10 split instead; test (624 images) is left untouched.
+    train_folder = ImageFolder(image_root / "train")
+    val_folder = ImageFolder(image_root / "val")
+    combined_samples = train_folder.samples + val_folder.samples
+    combined_targets = train_folder.targets + val_folder.targets
+
+    train_idx, val_idx = train_test_split(
+        range(len(combined_samples)), test_size=0.1, stratify=combined_targets, random_state=42
+    )
+    train_samples = [combined_samples[i] for i in train_idx]
+    val_samples = [combined_samples[i] for i in val_idx]
+    train_targets = [combined_targets[i] for i in train_idx]
+
     test_ds = ImageFolder(image_root / "test", transform=build_transforms(train=False))
+    train_ds = ImagePathDataset(train_samples, build_transforms(train=True))
+    val_ds = ImagePathDataset(val_samples, build_transforms(train=False))
 
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, num_workers=2)
     val_loader = DataLoader(val_ds, batch_size=args.batch_size, num_workers=2)
     test_loader = DataLoader(test_ds, batch_size=args.batch_size, num_workers=2)
 
     model = build_model(num_classes=len(CLASSES)).to(device)
-    criterion = nn.CrossEntropyLoss()
+    weights = class_weights(train_targets, len(CLASSES)).to(device)
+    print(f"Class weights (inverse frequency): {weights.tolist()}")
+    criterion = nn.CrossEntropyLoss(weight=weights)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
     out_dir = Path(args.out)
