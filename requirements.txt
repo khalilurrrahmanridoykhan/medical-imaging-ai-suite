@@ -1,0 +1,11 @@
+torch>=2.2.0
+torchvision>=0.17.0
+medmnist>=3.0.1
+numpy>=1.26.0
+pandas>=2.2.0
+scikit-learn>=1.4.0
+pillow>=10.2.0
+tqdm>=4.66.0
+huggingface_hub>=0.23.0
+kaggle>=1.6.6
+gradio>=4.26.0
