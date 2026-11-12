@@ -69,6 +69,7 @@ model repo and pulled down at inference time, keeping large binaries out of git.
 |---|---|---|---|
 | X-Ray (pneumonia) | 84.9% | 0.959 | Catches 387/390 pneumonia cases (99.2% sensitivity) but only 143/234 normal cases (61.1% specificity), flags over a third of healthy X-rays as pneumonia. Val accuracy during training was ~98%; this train/test gap is a known quirk of this specific Kaggle dataset (its test split comes from a different distribution than train/val), not a bug here. |
 | CT (nodule) | 81.0% | 0.854 | Catches 43/64 malignant test cases (67% sensitivity), misses the rest. A small from-scratch 3D CNN on a tiny, imbalanced dataset. |
+| MRI (brain tumor) | 95.1% | 0.990 | Strongest result so far. notumor and pituitary are 99%+ correct, meningioma 98%, but glioma is only 82.5% (330/400), mostly confused with meningioma or notumor. |
 
 Both are well short of clinical-grade performance, see the disclaimer. Other modalities are
 not trained yet (see Status / Roadmap below).
@@ -97,7 +98,7 @@ uploaded to HF Hub yet will fail with a download error when you try to predict w
 - [x] M0: Repo scaffold, LICENSE, README, GitHub setup
 - [x] M1: X-Ray (pneumonia detection), trained locally on an Apple M2 (MPS)
 - [x] M2: CT (lung nodule classification), trained locally on an Apple M2 (MPS)
-- [ ] M3: MRI (brain tumor classification)
+- [x] M3: MRI (brain tumor classification), trained locally on an Apple M2 (MPS)
 - [ ] M4: Ultrasound (breast lesion classification)
 - [ ] M5: ECG (arrhythmia classification)
 - [ ] M6: Unified router + CLI

@@ -21,3 +21,10 @@ def register_all() -> None:
         register("ct", ct_predict)
     except ImportError:
         pass
+
+    try:
+        from modalities.mri.infer import predict as mri_predict
+
+        register("mri", mri_predict)
+    except ImportError:
+        pass
