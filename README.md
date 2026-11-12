@@ -50,26 +50,40 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Three of the five datasets are hosted on Kaggle; downloading them requires a free Kaggle
+Four of the five datasets are hosted on Kaggle; downloading them requires a free Kaggle
 account and API token (`~/.kaggle/kaggle.json`). The CT dataset (MedMNIST `NoduleMNIST3D`)
 downloads automatically with no account needed.
 
 ## Training
 
-Each modality's model is trained in Google Colab (free GPU). `modalities/<name>/train.py`
-is the single source of truth; `modalities/<name>/notebook.ipynb` is a thin wrapper that
-installs dependencies and calls it. After training, weights are uploaded to a public
-Hugging Face Hub model repo and pulled down at inference time, keeping large binaries out
-of git.
+`modalities/<name>/train.py` is the single source of truth for training. It picks the best
+available device itself (CUDA, then Apple Silicon MPS, then CPU, see `common/device.py`),
+so it runs either in Google Colab (free GPU) via the thin `notebook.ipynb` wrapper, or
+directly as a local script, no notebook needed, on a machine with a capable GPU (an Apple
+Silicon Mac included). After training, weights are uploaded to a public Hugging Face Hub
+model repo and pulled down at inference time, keeping large binaries out of git.
+
+## Model performance (so far)
+
+| Modality | Test accuracy | Test AUROC | Notes |
+|---|---|---|---|
+| CT (nodule) | 81.0% | 0.854 | Catches 43/64 malignant test cases (67% sensitivity), misses the rest. A small from-scratch 3D CNN on a tiny, imbalanced dataset; see the disclaimer. |
+
+Other modalities are not trained yet (see Status / Roadmap below).
 
 ## Usage
 
 ```bash
 python -m router.predict --input sample_xray.png --modality xray
-python -m router.predict --input sample_ct_slice.png --modality ct
+python -m router.predict --input sample_nodule_patch.npy --modality ct
 ```
 
 Returns JSON: `{"modality": "xray", "label": "Pneumonia", "confidence": 0.93}`.
+
+**CT input note:** the CT model expects a pre-cropped 28x28x28 nodule-candidate patch as a
+`.npy` file (the same format NoduleMNIST3D uses), not an arbitrary whole CT scan or slice.
+Extracting candidate patches from a full CT volume is a separate, much larger pipeline
+that's out of scope here.
 
 **Note:** `infer.py` downloads trained weights from Hugging Face Hub on first use. Until a
 modality has actually been trained in Colab and its weights uploaded there, running its
@@ -78,8 +92,8 @@ prediction will fail with a download error, that part is a manual step outside t
 ## Status / Roadmap
 
 - [x] M0: Repo scaffold, LICENSE, README, GitHub setup
-- [x] M1: X-Ray (pneumonia detection)
-- [ ] M2: CT (lung nodule classification)
+- [x] M1: X-Ray (pneumonia detection), code ready, not yet trained (needs Colab + Kaggle token)
+- [x] M2: CT (lung nodule classification), trained locally on an Apple M2 (MPS)
 - [ ] M3: MRI (brain tumor classification)
 - [ ] M4: Ultrasound (breast lesion classification)
 - [ ] M5: ECG (arrhythmia classification)

@@ -18,6 +18,7 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.datasets import ImageFolder
 
+from common.device import get_device
 from modalities.xray.data import CLASSES, download
 from modalities.xray.model import build_model
 
@@ -86,7 +87,8 @@ def main() -> None:
     args = parser.parse_args()
 
     image_root = Path(args.data_dir) if args.data_dir else download()
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = get_device()
+    print(f"Using device: {device}")
 
     train_ds = ImageFolder(image_root / "train", transform=build_transforms(train=True))
     val_ds = ImageFolder(image_root / "val", transform=build_transforms(train=False))

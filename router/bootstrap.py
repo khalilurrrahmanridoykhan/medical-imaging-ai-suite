@@ -14,3 +14,10 @@ def register_all() -> None:
         register("xray", xray_predict)
     except ImportError:
         pass
+
+    try:
+        from modalities.ct.infer import predict as ct_predict
+
+        register("ct", ct_predict)
+    except ImportError:
+        pass

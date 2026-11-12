@@ -10,6 +10,8 @@ venv/
 weights/*.pt
 weights/*.pth
 weights/*.onnx
+weights/*.json
+modalities/*/out/
 
 # Raw datasets (downloaded by data.py scripts, not committed)
 data/
