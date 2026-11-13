@@ -42,6 +42,8 @@ docs/
   DATASETS.md  dataset sources, licenses, citations
 app/           Gradio demo app (Phase M7)
 chat/          natural-language chat over a prediction, via a local LLM (Phase M8)
+backend/       FastAPI wrapping predict + chat as HTTP endpoints, for the React frontend
+frontend/      React (Vite) web UI: upload, pick modality, see prediction, then chat (Phase M9)
 ```
 
 ## Setup
@@ -136,6 +138,29 @@ above. It's a text-only explainer bolted onto the real vision/signal models, not
 language model looking at pixels itself; it can't answer open-ended questions about visual
 details it was never given.
 
+## Web UI (local)
+
+A React frontend backed by a small FastAPI server, so you can upload a file, pick a
+modality, see the prediction, and chat about it in a browser instead of the CLI.
+
+**Terminal 1, backend:**
+```bash
+source .venv/bin/activate
+uvicorn backend.main:app --reload --port 8000
+```
+
+**Terminal 2, frontend:**
+```bash
+cd frontend
+npm install   # first time only
+npm run dev
+```
+
+Then open the URL Vite prints (usually `http://localhost:5173`). This runs entirely on
+your own machine: the backend calls your locally trained models and your local Ollama LLM,
+nothing is deployed publicly. Set `VITE_API_BASE` in `frontend/.env` (copy from
+`.env.example`) if the backend isn't on the default `http://localhost:8000`.
+
 ## Status / Roadmap
 
 - [x] M0: Repo scaffold, LICENSE, README, GitHub setup
@@ -147,6 +172,7 @@ details it was never given.
 - [ ] M6: Unified router + CLI (basic routing already works; auto modality-detection is the remaining stretch goal)
 - [ ] M7: Live Gradio demo
 - [x] M8: Natural-language chat over a prediction, via a local LLM (Ollama, no API key/cost)
+- [x] M9: React + FastAPI web UI, local only (predict + chat in a browser)
 
 ## Datasets and licenses
 
