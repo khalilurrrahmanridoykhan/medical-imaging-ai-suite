@@ -41,6 +41,7 @@ tests/         unit tests for each infer.py's input/output contract
 docs/
   DATASETS.md  dataset sources, licenses, citations
 app/           Gradio demo app (Phase M7)
+chat/          natural-language chat over a prediction, via a local LLM (Phase M8)
 ```
 
 ## Setup
@@ -101,6 +102,40 @@ copy already exists locally in `weights/` (how X-Ray and CT were tested here, tr
 locally and copied straight into `weights/`). A modality with no local weights and nothing
 uploaded to HF Hub yet will fail with a download error when you try to predict with it.
 
+## Chat (natural-language, local LLM)
+
+Instead of (or alongside) the raw JSON from `router.predict`, you can ask free-form
+questions about a prediction in plain language, in whatever language you ask in:
+
+```bash
+python -m chat.cli --input sample_xray.png --modality xray
+```
+
+This runs the modality's model once, then starts an interactive loop. Example:
+
+```
+[xray] prediction: NORMAL (confidence 0.96)
+Ask anything about this result. Type 'exit' to quit.
+
+you> Is this normal? Explain simply.
+assistant> This prediction says the image is NORMAL, with a confidence of 0.962...
+```
+
+**Requires a local LLM via [Ollama](https://ollama.com)**, no API key, no cost, nothing
+leaves the machine:
+
+```bash
+brew install ollama
+brew services start ollama
+ollama pull qwen2.5-coder:7b   # or any other model; update MODEL in chat/llm.py to match
+```
+
+The LLM never sees the actual image or signal, only the structured prediction (label,
+confidence) plus this modality's documented accuracy and known weaknesses from the table
+above. It's a text-only explainer bolted onto the real vision/signal models, not a vision-
+language model looking at pixels itself; it can't answer open-ended questions about visual
+details it was never given.
+
 ## Status / Roadmap
 
 - [x] M0: Repo scaffold, LICENSE, README, GitHub setup
@@ -111,6 +146,7 @@ uploaded to HF Hub yet will fail with a download error when you try to predict w
 - [x] M5: ECG (arrhythmia classification), trained locally on an Apple M2 (MPS)
 - [ ] M6: Unified router + CLI (basic routing already works; auto modality-detection is the remaining stretch goal)
 - [ ] M7: Live Gradio demo
+- [x] M8: Natural-language chat over a prediction, via a local LLM (Ollama, no API key/cost)
 
 ## Datasets and licenses
 
