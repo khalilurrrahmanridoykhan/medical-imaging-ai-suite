@@ -18,7 +18,7 @@ ever be used for real patient diagnosis or treatment decisions.**
 | CT | Lung nodule classification | Benign, Malignant |
 | MRI | Brain tumor classification | Glioma, Meningioma, Pituitary, No tumor |
 | Ultrasound | Breast lesion classification | Normal, Benign, Malignant |
-| ECG | Arrhythmia classification | 5-class heartbeat categorization |
+| ECG | Arrhythmia classification | N (normal), S (supraventricular), V (ventricular), F (fusion), Q (unknown/paced) |
 
 Each modality has its own dataset, model, training script, and inference module. A
 router dispatches an input file to the right model and returns a plain prediction plus
@@ -71,9 +71,11 @@ model repo and pulled down at inference time, keeping large binaries out of git.
 | CT (nodule) | 81.0% | 0.854 | Catches 43/64 malignant test cases (67% sensitivity), misses the rest. A small from-scratch 3D CNN on a tiny, imbalanced dataset. |
 | MRI (brain tumor) | 95.1% | 0.990 | Strongest result so far. notumor and pituitary are 99%+ correct, meningioma 98%, but glioma is only 82.5% (330/400), mostly confused with meningioma or notumor. |
 | Ultrasound (breast lesion) | 91.0% | 0.987 | Malignant is caught 21/21 (100%), but 3/14 normal cases are flagged as malignant (false alarms, the safer error direction, but still a real limitation on a very small 780-image dataset). |
+| ECG (arrhythmia) | 86.9% | 0.977 | Per-class recall: N 85.9%, S 78.2%, V 87.8%, F 92.0%, Q 98.3%, reasonably balanced given the raw data is ~83% N and under 1% F. |
 
-All of these are well short of clinical-grade performance, see the disclaimer. Remaining
-modalities are not trained yet (see Status / Roadmap below).
+All of these are well short of clinical-grade performance, see the disclaimer. All five
+modalities are now trained; see Status / Roadmap below for what's left (the router CLI
+and the live demo).
 
 ## Usage
 
@@ -89,6 +91,11 @@ Returns JSON: `{"modality": "xray", "label": "Pneumonia", "confidence": 0.93}`.
 Extracting candidate patches from a full CT volume is a separate, much larger pipeline
 that's out of scope here.
 
+**ECG input note:** `--modality ecg` expects a `.npy` file containing a single pre-segmented
+187-sample heartbeat waveform (the MIT-BIH/Kachuee preprocessing format), not a raw
+multi-beat ECG strip, image, or signal file format. `python -m router.predict --input
+sample_heartbeat.npy --modality ecg`.
+
 **Note:** `infer.py` downloads trained weights from Hugging Face Hub on first use, unless a
 copy already exists locally in `weights/` (how X-Ray and CT were tested here, trained
 locally and copied straight into `weights/`). A modality with no local weights and nothing
@@ -101,8 +108,8 @@ uploaded to HF Hub yet will fail with a download error when you try to predict w
 - [x] M2: CT (lung nodule classification), trained locally on an Apple M2 (MPS)
 - [x] M3: MRI (brain tumor classification), trained locally on an Apple M2 (MPS)
 - [x] M4: Ultrasound (breast lesion classification), trained locally on an Apple M2 (MPS)
-- [ ] M5: ECG (arrhythmia classification)
-- [ ] M6: Unified router + CLI
+- [x] M5: ECG (arrhythmia classification), trained locally on an Apple M2 (MPS)
+- [ ] M6: Unified router + CLI (basic routing already works; auto modality-detection is the remaining stretch goal)
 - [ ] M7: Live Gradio demo
 
 ## Datasets and licenses

@@ -35,3 +35,10 @@ def register_all() -> None:
         register("ultrasound", ultrasound_predict)
     except ImportError:
         pass
+
+    try:
+        from modalities.ecg.infer import predict as ecg_predict
+
+        register("ecg", ecg_predict)
+    except ImportError:
+        pass
