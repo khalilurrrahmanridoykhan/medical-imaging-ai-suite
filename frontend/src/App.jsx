@@ -50,6 +50,13 @@ const MODALITIES = [
   },
 ];
 
+const SUGGESTIONS = [
+  "What does this result mean?",
+  "How reliable is this model?",
+  "What should I do next?",
+  "What are the limitations of this prediction?",
+];
+
 export default function App() {
   const [modality, setModality] = useState(MODALITIES[0].value);
   const [file, setFile] = useState(null);
@@ -65,12 +72,23 @@ export default function App() {
   const fileInputRef = useRef(null);
   const textareaRef = useRef(null);
   const messagesEndRef = useRef(null);
+  const previewUrlRef = useRef(null);
 
   const selected = MODALITIES.find((m) => m.value === modality);
+  const showSuggestions = result && messages.length === 2 && !asking;
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, asking, result]);
+
+  useEffect(() => () => revokePreview(), []);
+
+  function revokePreview() {
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = null;
+    }
+  }
 
   function pickFile(f) {
     if (!f) return;
@@ -87,13 +105,34 @@ export default function App() {
   async function handleAnalyze(e) {
     e.preventDefault();
     if (!file) return;
+    const uploaded = file;
     setError("");
     setPredicting(true);
     setResult(null);
-    setMessages([]);
+    revokePreview();
+
+    const isImage = uploaded.type.startsWith("image/");
+    if (isImage) previewUrlRef.current = URL.createObjectURL(uploaded);
+    setMessages([
+      {
+        role: "user",
+        type: isImage ? "image" : "file",
+        content: isImage ? previewUrlRef.current : uploaded.name,
+        fileName: uploaded.name,
+      },
+    ]);
+
     try {
-      const data = await predict(file, modality);
+      const data = await predict(uploaded, modality);
       setResult(data);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          type: "text",
+          content: `Prediction is in: ${data.label} (${(data.confidence * 100).toFixed(1)}% confidence).`,
+        },
+      ]);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -101,23 +140,28 @@ export default function App() {
     }
   }
 
-  async function handleAsk(e) {
-    e.preventDefault();
-    const q = question.trim();
+  async function askQuestion(q) {
     if (!q || !result || asking) return;
-    setMessages((prev) => [...prev, { role: "user", content: q }]);
-    setQuestion("");
-    if (textareaRef.current) textareaRef.current.style.height = "auto";
+    setMessages((prev) => [...prev, { role: "user", type: "text", content: q }]);
     setAsking(true);
     setError("");
     try {
       const data = await chat(result.session_id, q);
-      setMessages((prev) => [...prev, { role: "assistant", content: data.answer }]);
+      setMessages((prev) => [...prev, { role: "assistant", type: "text", content: data.answer }]);
     } catch (err) {
       setError(err.message);
     } finally {
       setAsking(false);
     }
+  }
+
+  async function handleAsk(e) {
+    e.preventDefault();
+    const q = question.trim();
+    if (!q) return;
+    setQuestion("");
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
+    await askQuestion(q);
   }
 
   function handleQuestionChange(e) {
@@ -141,6 +185,7 @@ export default function App() {
     setResult(null);
     setMessages([]);
     setError("");
+    revokePreview();
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
@@ -149,6 +194,7 @@ export default function App() {
     setResult(null);
     setMessages([]);
     setError("");
+    revokePreview();
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
@@ -273,22 +319,23 @@ export default function App() {
             </div>
           )}
 
-          {result && messages.length === 0 && (
-            <div className="assistant-row">
-              <div className="avatar assistant-avatar">AI</div>
-              <div className="bubble assistant-bubble">
-                Prediction is in: <strong>{result.label}</strong> (
-                {(result.confidence * 100).toFixed(1)}% confidence). Ask me anything about
-                this result, for example &ldquo;Is this serious?&rdquo; or &ldquo;How
-                reliable is this model?&rdquo;
-              </div>
-            </div>
-          )}
-
           {messages.map((m, i) =>
             m.role === "user" ? (
               <div key={i} className="user-row">
-                <div className="bubble user-bubble">{m.content}</div>
+                {m.type === "image" ? (
+                  <div className="bubble bubble-image">
+                    <img src={m.content} alt={m.fileName} />
+                  </div>
+                ) : m.type === "file" ? (
+                  <div className="bubble file-chip">
+                    <span className="file-chip-icon" aria-hidden="true">
+                      📄
+                    </span>
+                    {m.fileName}
+                  </div>
+                ) : (
+                  <div className="bubble user-bubble">{m.content}</div>
+                )}
               </div>
             ) : (
               <div key={i} className="assistant-row">
@@ -306,6 +353,21 @@ export default function App() {
                 <span />
                 <span />
               </div>
+            </div>
+          )}
+
+          {showSuggestions && (
+            <div className="suggestions">
+              {SUGGESTIONS.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  className="suggestion-chip"
+                  onClick={() => askQuestion(s)}
+                >
+                  {s}
+                </button>
+              ))}
             </div>
           )}
 
