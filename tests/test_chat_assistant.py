@@ -34,3 +34,31 @@ def test_unknown_modality_raises(monkeypatch, tmp_path):
         assert False, "expected ValueError"
     except ValueError:
         pass
+
+
+def test_standalone_chat_forwards_image_to_llm(monkeypatch):
+    seen = {}
+
+    def fake_chat(messages):
+        seen["messages"] = messages
+        return "The image shows a sample."
+
+    monkeypatch.setattr("chat.llm.chat", fake_chat)
+
+    session = ChatSession()
+    answer = session.ask("What is in this image?", b"image bytes")
+
+    assert answer == "The image shows a sample."
+    assert seen["messages"][-1] == {
+        "role": "user",
+        "content": "What is in this image?",
+        "images": [b"image bytes"],
+    }
+
+
+def test_chat_requires_both_prediction_arguments():
+    try:
+        ChatSession("xray")
+        assert False, "expected ValueError"
+    except ValueError:
+        pass

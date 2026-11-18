@@ -129,19 +129,23 @@ leaves the machine:
 ```bash
 brew install ollama
 brew services start ollama
-ollama pull qwen2.5-coder:7b   # or any other model; update MODEL in chat/llm.py to match
+ollama pull qwen2.5-coder:7b
+ollama pull qwen2.5vl:7b       # used when a chat message includes an image
 ```
 
-The LLM never sees the actual image or signal, only the structured prediction (label,
-confidence) plus this modality's documented accuracy and known weaknesses from the table
-above. It's a text-only explainer bolted onto the real vision/signal models, not a vision-
-language model looking at pixels itself; it can't answer open-ended questions about visual
-details it was never given.
+Text-only questions use the local `qwen2.5-coder:7b` model. When an image is attached in
+the web chat, the local `qwen2.5vl:7b` vision model receives it along with the prompt;
+image bytes stay on the local backend. The prediction chat still includes the classifier's
+result and its documented limitations. You can set `OLLAMA_MODEL` and
+`OLLAMA_VISION_MODEL` to use different locally available Ollama models.
 
 ## Web UI (local)
 
 A React frontend backed by a small FastAPI server, so you can upload a file, pick a
-modality, see the prediction, and chat about it in a browser instead of the CLI.
+modality, see the prediction, and chat about it in a browser instead of the CLI. Use the
+plus button in the chat composer to attach a JPEG, PNG, or WebP image (up to 10 MB), add
+an optional prompt, and send it to the local vision model. You can also start a general
+image conversation without running a prediction first.
 
 **Terminal 1, backend:**
 ```bash

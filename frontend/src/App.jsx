@@ -1,5 +1,17 @@
 import { useEffect, useRef, useState } from "react";
-import { chat, predict } from "./api";
+import {
+  FiActivity,
+  FiChevronLeft,
+  FiChevronRight,
+  FiCpu,
+  FiHeart,
+  FiLayers,
+  FiPlus,
+  FiRadio,
+  FiSend,
+  FiX,
+} from "react-icons/fi";
+import { chat } from "./api";
 import "./App.css";
 
 const MODALITIES = [
@@ -8,145 +20,119 @@ const MODALITIES = [
     label: "X-Ray — pneumonia detection",
     short: "X-Ray",
     task: "Pneumonia detection",
-    icon: "🫁",
-    accept: ".jpg,.jpeg,.png",
-    hint: "Upload a chest X-ray image (.jpg/.png).",
+    icon: FiActivity,
+    imageGuide: "Attach a clear chest X-ray image in JPEG, PNG, or WebP format.",
   },
   {
     value: "ct",
     label: "CT — lung nodule classification",
     short: "CT",
     task: "Lung nodule",
-    icon: "🔬",
-    accept: ".npy",
-    hint: "Upload a .npy file: a 28×28×28 pre-cropped nodule patch, not a whole scan.",
+    icon: FiLayers,
+    imageGuide: "Attach a clear CT scan slice in JPEG, PNG, or WebP format.",
   },
   {
     value: "mri",
     label: "MRI — brain tumor classification",
     short: "MRI",
     task: "Brain tumor",
-    icon: "🧠",
-    accept: ".jpg,.jpeg,.png",
-    hint: "Upload a brain MRI image.",
+    icon: FiCpu,
+    imageGuide: "Attach a clear brain MRI image in JPEG, PNG, or WebP format.",
   },
   {
     value: "ultrasound",
     label: "Ultrasound — breast lesion classification",
     short: "Ultrasound",
     task: "Breast lesion",
-    icon: "🩺",
-    accept: ".png,.jpg,.jpeg",
-    hint: "Upload a breast ultrasound image.",
+    icon: FiRadio,
+    imageGuide: "Attach a clear breast ultrasound image in JPEG, PNG, or WebP format.",
   },
   {
     value: "ecg",
     label: "ECG — arrhythmia classification",
     short: "ECG",
     task: "Arrhythmia",
-    icon: "❤️",
-    accept: ".npy",
-    hint: "Upload a .npy file: a single 187-sample heartbeat waveform.",
+    icon: FiHeart,
+    imageGuide: "Attach a clear image of an ECG tracing in JPEG, PNG, or WebP format.",
   },
-];
-
-const SUGGESTIONS = [
-  "What does this result mean?",
-  "How reliable is this model?",
-  "What should I do next?",
-  "What are the limitations of this prediction?",
 ];
 
 export default function App() {
   const [modality, setModality] = useState(MODALITIES[0].value);
-  const [file, setFile] = useState(null);
-  const [dragOver, setDragOver] = useState(false);
-  const [result, setResult] = useState(null);
-  const [predicting, setPredicting] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [error, setError] = useState("");
 
   const [messages, setMessages] = useState([]);
   const [question, setQuestion] = useState("");
   const [asking, setAsking] = useState(false);
+  const [attachment, setAttachment] = useState(null);
+  const [attachmentPreview, setAttachmentPreview] = useState("");
+  const [chatSessionId, setChatSessionId] = useState(null);
 
-  const fileInputRef = useRef(null);
+  const imageInputRef = useRef(null);
   const textareaRef = useRef(null);
   const messagesEndRef = useRef(null);
-  const previewUrlRef = useRef(null);
+  const attachmentPreviewUrlsRef = useRef([]);
 
   const selected = MODALITIES.find((m) => m.value === modality);
-  const showSuggestions = result && messages.length === 2 && !asking;
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages, asking, result]);
+  }, [messages, asking]);
 
-  useEffect(() => () => revokePreview(), []);
+  useEffect(() => () => {
+    attachmentPreviewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+  }, []);
 
-  function revokePreview() {
-    if (previewUrlRef.current) {
-      URL.revokeObjectURL(previewUrlRef.current);
-      previewUrlRef.current = null;
+  function removeAttachment() {
+    if (attachmentPreview) {
+      URL.revokeObjectURL(attachmentPreview);
+      attachmentPreviewUrlsRef.current = attachmentPreviewUrlsRef.current.filter(
+        (url) => url !== attachmentPreview,
+      );
     }
+    setAttachment(null);
+    setAttachmentPreview("");
+    if (imageInputRef.current) imageInputRef.current.value = "";
   }
 
-  function pickFile(f) {
+  function pickAttachment(f) {
     if (!f) return;
-    setFile(f);
+    if (!["image/jpeg", "image/png", "image/webp"].includes(f.type)) {
+      setError("Choose a JPEG, PNG, or WebP image.");
+      if (imageInputRef.current) imageInputRef.current.value = "";
+      return;
+    }
+    if (f.size > 10 * 1024 * 1024) {
+      setError("Images must be 10 MB or smaller.");
+      if (imageInputRef.current) imageInputRef.current.value = "";
+      return;
+    }
+    removeAttachment();
+    const url = URL.createObjectURL(f);
+    attachmentPreviewUrlsRef.current.push(url);
+    setAttachment(f);
+    setAttachmentPreview(url);
     setError("");
   }
 
-  function handleDrop(e) {
-    e.preventDefault();
-    setDragOver(false);
-    pickFile(e.dataTransfer.files[0]);
-  }
-
-  async function handleAnalyze(e) {
-    e.preventDefault();
-    if (!file) return;
-    const uploaded = file;
-    setError("");
-    setPredicting(true);
-    setResult(null);
-    revokePreview();
-
-    const isImage = uploaded.type.startsWith("image/");
-    if (isImage) previewUrlRef.current = URL.createObjectURL(uploaded);
-    setMessages([
+  async function askQuestion(q, image = attachment, imageUrl = attachmentPreview) {
+    if ((!q && !image) || asking) return;
+    setMessages((prev) => [
+      ...prev,
       {
         role: "user",
-        type: isImage ? "image" : "file",
-        content: isImage ? previewUrlRef.current : uploaded.name,
-        fileName: uploaded.name,
+        type: "text",
+        content: q,
+        image: imageUrl || "",
+        fileName: image?.name || "",
       },
     ]);
-
-    try {
-      const data = await predict(uploaded, modality);
-      setResult(data);
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          type: "text",
-          content: `Prediction is in: ${data.label} (${(data.confidence * 100).toFixed(1)}% confidence).`,
-        },
-      ]);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setPredicting(false);
-    }
-  }
-
-  async function askQuestion(q) {
-    if (!q || !result || asking) return;
-    setMessages((prev) => [...prev, { role: "user", type: "text", content: q }]);
     setAsking(true);
     setError("");
     try {
-      const data = await chat(result.session_id, q);
+      const data = await chat(chatSessionId, q, image);
+      setChatSessionId(data.session_id);
       setMessages((prev) => [...prev, { role: "assistant", type: "text", content: data.answer }]);
     } catch (err) {
       setError(err.message);
@@ -158,10 +144,13 @@ export default function App() {
   async function handleAsk(e) {
     e.preventDefault();
     const q = question.trim();
-    if (!q) return;
+    if (!q && !attachment) return;
+    const sentAttachment = attachment;
+    const sentPreview = attachmentPreview;
     setQuestion("");
     if (textareaRef.current) textareaRef.current.style.height = "auto";
-    await askQuestion(q);
+    removeAttachment();
+    await askQuestion(q, sentAttachment, sentPreview);
   }
 
   function handleQuestionChange(e) {
@@ -181,40 +170,32 @@ export default function App() {
   function selectModality(value) {
     if (value === modality) return;
     setModality(value);
-    setFile(null);
-    setResult(null);
     setMessages([]);
+    setChatSessionId(null);
     setError("");
-    revokePreview();
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  }
-
-  function startOver() {
-    setFile(null);
-    setResult(null);
-    setMessages([]);
-    setError("");
-    revokePreview();
-    if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
       <aside className="sidebar">
         <div className="brand">
           <span className="brand-mark" aria-hidden="true">
-            ⚕
+            <FiActivity size={22} />
           </span>
-          <div>
+          <div className="brand-copy">
             <h1>Medical Imaging AI</h1>
             <p className="brand-sub">Multi-modality diagnostic assistant</p>
           </div>
+          <button
+            type="button"
+            className="sidebar-toggle"
+            onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {sidebarCollapsed ? <FiChevronRight size={20} /> : <FiChevronLeft size={20} />}
+          </button>
         </div>
-
-        <p className="disclaimer">
-          Research/learning project only. Not a medical device, not validated for clinical
-          use, and never for real patient diagnosis or treatment decisions.
-        </p>
 
         <nav className="modality-list">
           {MODALITIES.map((m) => (
@@ -223,9 +204,11 @@ export default function App() {
               type="button"
               className={`modality-item ${m.value === modality ? "active" : ""}`}
               onClick={() => selectModality(m.value)}
+              aria-label={m.label}
+              title={sidebarCollapsed ? m.short : undefined}
             >
               <span className="modality-icon" aria-hidden="true">
-                {m.icon}
+                <m.icon size={20} />
               </span>
               <span>
                 <span className="modality-name">{m.short}</span>
@@ -235,86 +218,37 @@ export default function App() {
           ))}
         </nav>
 
-        <form onSubmit={handleAnalyze} className="upload-form">
-          <label
-            className={`dropzone ${dragOver ? "drag" : ""} ${file ? "has-file" : ""}`}
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDragOver(true);
-            }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={handleDrop}
-          >
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept={selected.accept}
-              onChange={(e) => pickFile(e.target.files[0] || null)}
-              hidden
-            />
-            {file ? (
-              <>
-                <strong>{file.name}</strong>
-                <span>Click or drop to replace</span>
-              </>
-            ) : (
-              <>
-                <strong>Drop a file here</strong>
-                <span>or click to browse</span>
-              </>
-            )}
-          </label>
-          <p className="hint">{selected.hint}</p>
-
-          <button type="submit" className="primary-btn" disabled={!file || predicting}>
-            {predicting ? (
-              <span className="spinner-row">
-                <span className="spinner" /> Analyzing
-              </span>
-            ) : (
-              "Analyze"
-            )}
-          </button>
-
-          {result && (
-            <button type="button" className="ghost-btn" onClick={startOver}>
-              Start over
-            </button>
-          )}
-        </form>
+        <section className="modality-guide" aria-live="polite">
+          <h2>{selected.short} image guide</h2>
+          <p>{selected.imageGuide}</p>
+        </section>
 
         {error && <p className="error">{error}</p>}
+
+        <p className="sidebar-credit">
+          Developed by{" "}
+          <a href="https://krrkhan.com" target="_blank" rel="noreferrer">
+            Khalilur Rahman Ridoy Khan
+          </a>
+        </p>
       </aside>
 
       <main className="chat-panel">
         <header className="chat-header">
           <div>
             <h2>{selected.label}</h2>
-            <p>{selected.hint}</p>
+            <p>Ask a question or attach an image in the chat.</p>
           </div>
-          {result && (
-            <div className="result-pill">
-              <span className={`badge ${String(result.label).toLowerCase()}`}>{result.label}</span>
-              <div className="confidence-bar">
-                <div
-                  className="confidence-fill"
-                  style={{ width: `${(result.confidence * 100).toFixed(1)}%` }}
-                />
-              </div>
-              <span className="confidence-text">{(result.confidence * 100).toFixed(1)}%</span>
-            </div>
-          )}
         </header>
 
         <div className="messages">
-          {!result && (
+          {messages.length === 0 && (
             <div className="empty-state">
               <span className="empty-icon" aria-hidden="true">
-                {selected.icon}
+                <selected.icon size={36} />
               </span>
               <p>
-                Upload a {selected.short.toLowerCase()} file in the sidebar and hit Analyze
-                to get a prediction, then ask questions about it here.
+                Add an image with the plus button or type a question below to start a conversation.
               </p>
             </div>
           )}
@@ -322,24 +256,16 @@ export default function App() {
           {messages.map((m, i) =>
             m.role === "user" ? (
               <div key={i} className="user-row">
-                {m.type === "image" ? (
-                  <div className="bubble bubble-image">
-                    <img src={m.content} alt={m.fileName} />
-                  </div>
-                ) : m.type === "file" ? (
-                  <div className="bubble file-chip">
-                    <span className="file-chip-icon" aria-hidden="true">
-                      📄
-                    </span>
-                    {m.fileName}
-                  </div>
-                ) : (
-                  <div className="bubble user-bubble">{m.content}</div>
-                )}
+                <div className="bubble user-bubble">
+                  {m.image && <img className="message-image" src={m.image} alt={m.fileName} />}
+                  {m.content}
+                </div>
               </div>
             ) : (
               <div key={i} className="assistant-row">
-                <div className="avatar assistant-avatar">AI</div>
+                <div className="avatar assistant-avatar" role="img" aria-label="Assistant">
+                  <FiCpu size={17} aria-hidden="true" />
+                </div>
                 <div className="bubble assistant-bubble">{m.content}</div>
               </div>
             )
@@ -347,7 +273,9 @@ export default function App() {
 
           {asking && (
             <div className="assistant-row">
-              <div className="avatar assistant-avatar">AI</div>
+              <div className="avatar assistant-avatar" role="img" aria-label="Assistant">
+                <FiCpu size={17} aria-hidden="true" />
+              </div>
               <div className="bubble assistant-bubble typing">
                 <span />
                 <span />
@@ -356,45 +284,60 @@ export default function App() {
             </div>
           )}
 
-          {showSuggestions && (
-            <div className="suggestions">
-              {SUGGESTIONS.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  className="suggestion-chip"
-                  onClick={() => askQuestion(s)}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          )}
-
           <div ref={messagesEndRef} />
         </div>
 
         <form onSubmit={handleAsk} className="composer">
-          <textarea
-            ref={textareaRef}
-            value={question}
-            onChange={handleQuestionChange}
-            onKeyDown={handleComposerKeyDown}
-            placeholder={result ? "Ask about this result..." : "Analyze a file first to start chatting"}
-            disabled={!result || asking}
-            rows={1}
-          />
-          <button
-            type="submit"
-            className="send-btn"
-            disabled={!question.trim() || !result || asking}
-            aria-label="Send"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M22 2 11 13" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M22 2 15 22l-4-9-9-4 20-7Z" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
+          {attachmentPreview && (
+            <div className="attachment-preview">
+              <img src={attachmentPreview} alt={`Preview of ${attachment?.name}`} />
+              <span>{attachment?.name}</span>
+              <button
+                type="button"
+                onClick={removeAttachment}
+                aria-label="Remove attached image"
+                disabled={asking}
+              >
+                <FiX size={16} aria-hidden="true" />
+              </button>
+            </div>
+          )}
+          <div className="composer-input-row">
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(e) => pickAttachment(e.target.files[0] || null)}
+              hidden
+            />
+            <button
+              type="button"
+              className="attach-btn"
+              onClick={() => imageInputRef.current?.click()}
+              disabled={asking}
+              aria-label="Add image"
+              title="Add image"
+            >
+              <FiPlus size={20} aria-hidden="true" />
+            </button>
+            <textarea
+              ref={textareaRef}
+              value={question}
+              onChange={handleQuestionChange}
+              onKeyDown={handleComposerKeyDown}
+              placeholder="Message Medical Imaging AI..."
+              disabled={asking}
+              rows={1}
+            />
+            <button
+              type="submit"
+              className="send-btn"
+              disabled={(!question.trim() && !attachment) || asking}
+              aria-label="Send"
+            >
+              <FiSend size={18} aria-hidden="true" />
+            </button>
+          </div>
         </form>
       </main>
     </div>

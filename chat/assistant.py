@@ -1,11 +1,8 @@
 """Natural-language chat over a modality model's prediction.
 
 Runs the chosen modality's classifier once on the given input, then lets
-a local LLM (via Ollama) answer free-form questions about that result in
-natural language. The LLM only ever sees the structured prediction
-(label, confidence, this modality's known accuracy and weaknesses) and
-the disclaimer, never the raw image or signal, this is a text-only LLM
-explaining a result, not a vision model looking at the input itself.
+a local Ollama model answer questions about the prediction. Standalone
+chat sessions can also answer questions about image attachments.
 """
 
 from router.bootstrap import register_all
@@ -15,6 +12,12 @@ DISCLAIMER = (
     "This is a learning/portfolio project. Nothing here is validated for "
     "clinical use, is a medical device, or should be used for real patient "
     "diagnosis or treatment decisions."
+)
+
+GENERAL_CHAT_PROMPT = (
+    "You are a helpful assistant that can answer questions about user-provided images. "
+    f"{DISCLAIMER} Do not diagnose conditions or recommend treatment. If an image is "
+    "provided, describe only what is visibly present and be clear about uncertainty."
 )
 
 MODALITY_CONTEXT = {
@@ -66,23 +69,34 @@ def build_system_prompt(modality: str, prediction: dict) -> str:
         "Answer the user's questions about this specific result in clear, "
         "simple language, in whatever language they ask in. Be honest about "
         "the model's known accuracy and weaknesses above when relevant. You "
-        "cannot see the image or signal yourself, only this prediction, so "
-        "never claim to observe visual details you weren't given."
+        "may receive an image attachment and can describe what is visibly "
+        "present, but distinguish visual observations from this model's "
+        "prediction. Without an image attachment, do not claim visual details."
     )
 
 
 class ChatSession:
-    def __init__(self, modality: str, input_path: str):
+    def __init__(self, modality: str | None = None, input_path: str | None = None):
+        if modality is None and input_path is None:
+            self.modality = None
+            self.prediction = None
+            self.history = [{"role": "system", "content": GENERAL_CHAT_PROMPT}]
+            return
+        if modality is None or input_path is None:
+            raise ValueError("Both modality and input_path are required for prediction chat")
         self.modality = modality
         self.prediction = run_prediction(modality, input_path)
         self.history = [
             {"role": "system", "content": build_system_prompt(modality, self.prediction)}
         ]
 
-    def ask(self, question: str) -> str:
+    def ask(self, question: str, image: bytes | None = None) -> str:
         from chat.llm import chat as llm_chat
 
-        self.history.append({"role": "user", "content": question})
+        message = {"role": "user", "content": question}
+        if image is not None:
+            message["images"] = [image]
+        self.history.append(message)
         answer = llm_chat(self.history)
         self.history.append({"role": "assistant", "content": answer})
         return answer

@@ -3,7 +3,7 @@ trained modality models.
 
 Two endpoints:
   POST /api/predict  multipart file + modality -> {session_id, label, confidence}
-  POST /api/chat      {session_id, question} -> {answer}
+  POST /api/chat      multipart {session_id?, question, image?} -> {session_id, answer}
 
 Sessions are an in-memory dict (fine for a single-process demo; a
 restart drops them). The LLM only ever sees the structured prediction,
@@ -17,8 +17,6 @@ from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-
 from chat.assistant import ChatSession
 
 app = FastAPI(title="Medical Imaging AI Suite API")
@@ -32,11 +30,6 @@ app.add_middleware(
 
 SESSIONS: dict[str, ChatSession] = {}
 MODALITIES = ["xray", "ct", "mri", "ultrasound", "ecg"]
-
-
-class ChatRequest(BaseModel):
-    session_id: str
-    question: str
 
 
 @app.get("/api/health")
@@ -70,9 +63,26 @@ async def predict(file: UploadFile = File(...), modality: str = Form(...)):
 
 
 @app.post("/api/chat")
-def chat(req: ChatRequest):
-    session = SESSIONS.get(req.session_id)
-    if session is None:
+async def chat(
+    question: str = Form(...),
+    session_id: str | None = Form(None),
+    image: UploadFile | None = File(None),
+):
+    session = SESSIONS.get(session_id) if session_id else None
+    if session_id and session is None:
         raise HTTPException(404, "Unknown session_id, run /api/predict first")
-    answer = session.ask(req.question)
-    return {"answer": answer}
+    if session is None:
+        session = ChatSession()
+        session_id = str(uuid.uuid4())
+        SESSIONS[session_id] = session
+
+    image_data = None
+    if image is not None:
+        if image.content_type not in {"image/jpeg", "image/png", "image/webp"}:
+            raise HTTPException(415, "Choose a JPEG, PNG, or WebP image")
+        image_data = await image.read(10 * 1024 * 1024 + 1)
+        if len(image_data) > 10 * 1024 * 1024:
+            raise HTTPException(413, "Images must be 10 MB or smaller")
+
+    answer = session.ask(question, image_data)
+    return {"session_id": session_id, "answer": answer}

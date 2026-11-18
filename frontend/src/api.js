@@ -13,11 +13,15 @@ export async function predict(file, modality) {
   return res.json();
 }
 
-export async function chat(sessionId, question) {
+export async function chat(sessionId, question, image) {
+  const form = new FormData();
+  if (sessionId) form.append("session_id", sessionId);
+  form.append("question", question);
+  if (image) form.append("image", image);
+
   const res = await fetch(`${API_BASE}/api/chat`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ session_id: sessionId, question }),
+    body: form,
   });
   if (!res.ok) {
     const detail = await res.json().catch(() => ({}));
