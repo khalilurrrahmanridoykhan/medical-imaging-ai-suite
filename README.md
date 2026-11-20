@@ -165,6 +165,27 @@ your own machine: the backend calls your locally trained models and your local O
 nothing is deployed publicly. Set `VITE_API_BASE` in `frontend/.env` (copy from
 `.env.example`) if the backend isn't on the default `http://localhost:8000`.
 
+## Gradio demo (public, predict only)
+
+A single-file Gradio app (`app/app.py`) exposes just the prediction step (no chat) behind a
+file upload and a modality dropdown, through the same `router.predict` used by the CLI and
+the web UI. Unlike the React/FastAPI UI above, this one needs no local setup to *view* once
+deployed: it is meant to run for free on
+[Hugging Face Spaces](https://huggingface.co/spaces), giving anyone a public link to try the
+five classifiers without installing anything or running a local LLM.
+
+Run it locally:
+```bash
+source .venv/bin/activate
+pip install gradio
+python app/app.py
+```
+
+To deploy it on Hugging Face Spaces: create a new Space (SDK: Gradio), and push this repo's
+`app/app.py`, `router/`, `modalities/`, and `requirements.txt` to it (model weights are
+pulled from the public Hugging Face Hub model repo on first prediction, same as every other
+entry point, so no large binary needs to be pushed to the Space itself).
+
 ## Status / Roadmap
 
 - [x] M0: Repo scaffold, LICENSE, README, GitHub setup
@@ -174,7 +195,7 @@ nothing is deployed publicly. Set `VITE_API_BASE` in `frontend/.env` (copy from
 - [x] M4: Ultrasound (breast lesion classification), trained locally on an Apple M2 (MPS)
 - [x] M5: ECG (arrhythmia classification), trained locally on an Apple M2 (MPS)
 - [ ] M6: Unified router + CLI (basic routing already works; auto modality-detection is the remaining stretch goal)
-- [ ] M7: Live Gradio demo
+- [x] M7: Gradio demo (`app/app.py`), deployable free on Hugging Face Spaces
 - [x] M8: Natural-language chat over a prediction, via a local LLM (Ollama, no API key/cost)
 - [x] M9: React + FastAPI web UI, local only (predict + chat in a browser)
 
