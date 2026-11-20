@@ -167,12 +167,14 @@ nothing is deployed publicly. Set `VITE_API_BASE` in `frontend/.env` (copy from
 
 ## Gradio demo (public, predict only)
 
-A single-file Gradio app (`app/app.py`) exposes just the prediction step (no chat) behind a
-file upload and a modality dropdown, through the same `router.predict` used by the CLI and
-the web UI. Unlike the React/FastAPI UI above, this one needs no local setup to *view* once
-deployed: it is meant to run for free on
-[Hugging Face Spaces](https://huggingface.co/spaces), giving anyone a public link to try the
-five classifiers without installing anything or running a local LLM.
+A Gradio app exposes just the prediction step (no chat) behind a file upload and a modality
+dropdown, through the same `router.predict` used by the CLI and the web UI. Unlike the
+React/FastAPI UI above, this needs no local setup to *view*: it is deployed publicly, so
+anyone gets a link to try the five classifiers without installing anything or running a
+local LLM.
+
+**Live demo:** https://khalilurrahmanridoykhan--medical-imaging-ai-suite-ui.us-east.modal.run
+(hosted on [Modal](https://modal.com), see below for why not Hugging Face Spaces).
 
 Run it locally:
 ```bash
@@ -181,10 +183,28 @@ pip install gradio
 python app/app.py
 ```
 
-To deploy it on Hugging Face Spaces: create a new Space (SDK: Gradio), and push this repo's
-`app/app.py`, `router/`, `modalities/`, and `requirements.txt` to it (model weights are
-pulled from the public Hugging Face Hub model repo on first prediction, same as every other
-entry point, so no large binary needs to be pushed to the Space itself).
+### Hosting notes
+
+Hugging Face Spaces was the original target for this (`app/app.py`), but as of this writing
+Hugging Face requires a paid (PRO) plan to host any Gradio or Docker Space on compute;
+only fully static (no Python) Spaces stay free. So the live demo above instead runs on
+[Modal](https://modal.com)'s free Starter plan ($30/month compute credit, scales to zero
+when idle) via `app/modal_app.py`, deployed with `modal deploy app/modal_app.py`.
+
+Modal's app runs Gradio as a sticky-session `@modal.sessioned()` Server rather than a plain
+`@modal.asgi_app()` function: Gradio's queue needs one continuously-running process per
+client across two separate HTTP calls (`/queue/join` then `/queue/data`), and a plain ASGI
+function can recycle its background queue task between those two calls on a different
+container, producing a 404. The sticky session pins a client to one container for the
+session's lifetime instead.
+
+Model weights (~128MB total) are baked directly into the Modal image from the local
+`weights/` directory rather than pulled from Hugging Face Hub at request time: the
+`HF_REPO` path each `infer.py` falls back to (`khalilurrahmanridoykhan/medical-imaging-ai-suite-weights`)
+is not actually a public model repo under this account, so a fresh container cannot
+download from it. This only affects a from-scratch deployment with no local `weights/`
+folder; the CLI and the local web UI above are unaffected since those weight files are
+already present in this repo's `weights/` directory.
 
 ## Status / Roadmap
 
