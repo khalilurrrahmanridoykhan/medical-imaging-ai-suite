@@ -19,12 +19,6 @@ from router.registry import MODALITY_REGISTRY
 
 register_all()
 
-DISCLAIMER = (
-    "Educational/portfolio project. Nothing here is validated for clinical "
-    "use, is a medical device, or should ever be used for real patient "
-    "diagnosis or treatment decisions."
-)
-
 MODALITY_CHOICES = {
     "X-Ray — image, Normal / Pneumonia": "xray",
     "MRI — image, Glioma / Meningioma / Pituitary / No tumor": "mri",
@@ -49,7 +43,6 @@ def predict(modality_label: str, file) -> str:
 
 with gr.Blocks(title="Medical Imaging AI Suite") as demo:
     gr.Markdown("# Medical Imaging AI Suite")
-    gr.Markdown(DISCLAIMER)
     modality_dropdown = gr.Dropdown(
         choices=list(MODALITY_CHOICES), value=list(MODALITY_CHOICES)[0], label="Modality"
     )
